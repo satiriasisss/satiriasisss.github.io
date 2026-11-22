@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#050506">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Contador</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23222226'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  :root{--btn:min(66vw,50vh,320px)}
+  @supports (height:100dvh){:root{--btn:min(66vw,50dvh,320px)}}
+
+  body{
+    min-height:100vh;min-height:100dvh;
+    background:#050506;color:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+    user-select:none;-webkit-user-select:none;
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  /* ---------- fondo: negro con cuadrícula fina, brillo suave y grano ---------- */
+  .bg{
+    position:fixed;inset:0;overflow:hidden;
+    background:radial-gradient(120% 90% at 50% 46%,#16161b 0%,#09090b 55%,#000 100%);
+  }
+  .bg::before{                                   /* cuadrícula que se desvanece hacia los bordes */
+    content:"";position:absolute;inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:44px 44px;
+    background-position:center;
+    -webkit-mask-image:radial-gradient(60% 48% at 50% 47%,#000 0%,transparent 100%);
+    mask-image:radial-gradient(60% 48% at 50% 47%,#000 0%,transparent 100%);
+  }
+  .bg::after{                                    /* luz blanca que "respira" detrás del botón */
+    content:"";position:absolute;left:50%;top:47%;
+    width:95vmin;height:95vmin;
+    transform:translate(-50%,-50%);
+    background:radial-gradient(circle,rgba(255,255,255,.11),rgba(255,255,255,0) 62%);
+    animation:breathe 7s ease-in-out infinite;
+  }
+  @keyframes breathe{
+    0%,100%{opacity:.65;transform:translate(-50%,-50%) scale(1)}
+    50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}
+  }
+  .grain{
+    position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  @media (prefers-reduced-motion:reduce){.bg::after{animation:none}}
+
+  /* ---------- cristal ---------- */
+  .glass{
+    border:1px solid rgba(255,255,255,.30);
+    background:
+      radial-gradient(130% 100% at 15% 0%,rgba(255,255,255,.30),rgba(255,255,255,0) 55%),
+      linear-gradient(150deg,rgba(255,255,255,.16),rgba(255,255,255,.04));
+    -webkit-backdrop-filter:blur(24px) saturate(150%);
+    backdrop-filter:blur(24px) saturate(150%);
+    box-shadow:
+      0 28px 60px -18px rgba(0,0,0,.8),
+      0 6px 18px rgba(0,0,0,.35),
+      inset 0 1px 0 rgba(255,255,255,.55),
+      inset 0 -1px 0 rgba(255,255,255,.10);
+    color:#fff;
+  }
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .glass{background:linear-gradient(150deg,rgba(60,60,68,.92),rgba(30,30,36,.9))}
+  }
+
+  /* ---------- layout ---------- */
+  .stage{
+    position:relative;z-index:1;
+    min-height:100vh;min-height:100dvh;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;
+  }
+  .bar{
+    position:fixed;z-index:2;top:0;left:0;right:0;
+    display:flex;justify-content:flex-end;align-items:center;
+    padding:calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 18px) 0 calc(env(safe-area-inset-left) + 18px);
+    pointer-events:none;
+  }
+  .bar button{pointer-events:auto}
+
+  /* ---------- botón grande con anillos ---------- */
+  .wrap{position:relative;width:var(--btn);height:var(--btn)}
+  .ring{position:absolute;border-radius:16%;border:1px solid rgba(255,255,255,.10);pointer-events:none}
+  .r1{inset:-11%}
+  .r2{inset:-24%;border-color:rgba(255,255,255,.06)}
+  .r3{inset:-40%;border-color:rgba(255,255,255,.03)}
+  .pulse{                                         /* onda que sale del botón en cada toque */
+    position:absolute;inset:0;border-radius:16%;pointer-events:none;
+    border:1.5px solid rgba(255,255,255,.6);opacity:0;
+  }
+
+  .main{
+    position:relative;overflow:hidden;cursor:pointer;
+    width:100%;height:100%;border-radius:16%;
+    display:grid;place-items:center;font:inherit;
+    transition:transform .16s cubic-bezier(.2,.8,.2,1);
+  }
+  .main:active{transform:scale(.955)}
+  .main:focus-visible,.minus:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:4px}
+  .main::before{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.26) 50%,transparent 65%);
+    transform:translateX(-110%);
+  }
+  .main.hit::before{animation:sheen .7s ease-out}
+  @keyframes sheen{to{transform:translateX(110%)}}
+
+  .num{
+    position:relative;top:.04em;
+    font-family:"Big Shoulders Display","Barlow Condensed","Arial Narrow",Impact,sans-serif;
+    font-size:calc(var(--btn)*.62);font-weight:800;line-height:1;letter-spacing:.01em;
+    font-variant-numeric:tabular-nums lining-nums;
+    background:linear-gradient(180deg,#fff 15%,#8a8a93 100%);
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;color:transparent;
+    filter:drop-shadow(0 6px 22px rgba(255,255,255,.22));
+    pointer-events:none;
+  }
+  .num[data-len="2"]{font-size:calc(var(--btn)*.58)}
+  .num[data-len="3"]{font-size:calc(var(--btn)*.46)}
+  .num[data-len="4"]{font-size:calc(var(--btn)*.36)}
+  .num[data-len="5"]{font-size:calc(var(--btn)*.30)}
+  .num[data-len="6"]{font-size:calc(var(--btn)*.25)}
+
+  /* ---------- botón pequeño (−1) ---------- */
+  .minus{
+    width:56px;height:56px;border-radius:18px;cursor:pointer;
+    display:grid;place-items:center;font:inherit;font-size:19px;font-weight:500;
+    transition:transform .15s,opacity .2s;
+  }
+  .minus:active{transform:scale(.92)}
+  .minus:disabled{opacity:.35;cursor:default}
+
+  /* ---------- indicador de estado ---------- */
+  .dot{
+    width:9px;height:9px;border-radius:50%;
+    background:rgba(255,255,255,.35);
+    transition:background .3s,box-shadow .3s;
+  }
+  .dot[data-s="ok"]{background:#7dffb4;box-shadow:0 0 12px #7dffb4}
+  .dot[data-s="busy"]{background:#ffd37a;box-shadow:0 0 12px #ffd37a;animation:pulse 1s infinite}
+  .dot[data-s="err"]{background:#ff6b81;box-shadow:0 0 12px #ff6b81}
+  @keyframes pulse{50%{opacity:.35}}
+
+  /* ---------- aviso ---------- */
+  .toast{
+    position:fixed;z-index:20;left:50%;bottom:calc(env(safe-area-inset-bottom) + 28px);
+    transform:translate(-50%,20px);
+    max-width:min(90vw,420px);padding:12px 18px;border-radius:16px;
+    font-size:14px;line-height:1.35;text-align:center;
+    opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<div class="bg" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="bar">
+  <button class="minus glass" id="minus" aria-label="Restar 1">−1</button>
+</div>
+
+<main class="stage">
+  <div class="wrap">
+    <i class="ring r3" aria-hidden="true"></i>
+    <i class="ring r2" aria-hidden="true"></i>
+    <i class="ring r1" aria-hidden="true"></i>
+    <i class="pulse" id="pulse" aria-hidden="true"></i>
+    <button class="main glass" id="main" aria-label="Sumar 1">
+      <span class="num" id="num" data-len="1">0</span>
+    </button>
+  </div>
+  <div class="dot" id="dot" data-s="idle"></div>
+</main>
+
+<div class="toast glass" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ---------- configuración ---------- */
+  const TOKEN = '9074704169:AAENgU1f0bflREkbvpFvMocHY16VUMCAFhA';
+  const CHAT_ID = '1236939701';
+
+  const $ = (id) => document.getElementById(id);
+  const mainBtn = $('main'), minusBtn = $('minus'), pulseEl = $('pulse');
+  const numEl = $('num'), dotEl = $('dot'), toastEl = $('toast');
+
+  /* ---------- memoria local de este navegador ---------- */
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+  const K = { count: 'cnt.count', sent: 'cnt.sent', msg: 'cnt.msg' };
+  const toInt = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  let count = Math.max(0, toInt(store.get(K.count), 0));   // número que ves en pantalla
+  let sent = Math.max(0, toInt(store.get(K.sent), 0));     // último número que sabemos que está en Telegram
+  let messageId = toInt(store.get(K.msg), null);           // mensaje actual del bot en el chat
+  let syncing = false;
+  let pinWarned = false;
+
+  function saveLocal() {
+    store.set(K.count, String(count));
+    store.set(K.sent, String(sent));
+    if (messageId) store.set(K.msg, String(messageId)); else store.del(K.msg);
+  }
+
+  /* ---------- interfaz ---------- */
+  function render(animate) {
+    numEl.textContent = String(count);
+    numEl.dataset.len = String(Math.min(String(count).length, 6));
+    minusBtn.disabled = count <= 0;
+    if (animate && numEl.animate) {
+      numEl.animate(
+        [{ transform: 'scale(1)' }, { transform: 'scale(1.1)' }, { transform: 'scale(1)' }],
+        { duration: 200, easing: 'ease-out' }
+      );
+    }
+  }
+
+  function pulse() {
+    if (!pulseEl.animate) return;
+    pulseEl.animate(
+      [{ transform: 'scale(1)', opacity: 0.5 }, { transform: 'scale(1.5)', opacity: 0 }],
+      { duration: 700, easing: 'cubic-bezier(.2,.7,.2,1)' }
+    );
+  }
+
+  function setStatus(s) {
+    dotEl.dataset.s = s;
+    dotEl.title = { ok: 'Sincronizado', busy: 'Enviando…', err: 'Sin sincronizar', idle: '' }[s] || '';
+  }
+
+  let toastTimer;
+  function toast(text, ms) {
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 4200);
+  }
+
+  /* ---------- llamadas a la API de Telegram ---------- */
+  async function tg(method, params) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let res;
+      try {
+        res = await fetch('https://api.telegram.org/bot' + TOKEN + '/' + method, {
+          method: 'POST',
+          body: new URLSearchParams(params || {})   // petición simple: sin preflight CORS
+        });
+      } catch (e) {
+        const err = new Error('network');
+        err.network = true;
+        throw err;
+      }
+      let data = null;
+      try { data = await res.json(); } catch (e) {}
+      if (data && data.ok) return data.result;
+
+      const code = data ? data.error_code : res.status;
+      const desc = data ? (data.description || '') : '';
+      if (code === 429 && attempt < 2) {                // demasiado rápido: esperar y reintentar
+        const wait = ((data && data.parameters && data.parameters.retry_after) || 1) + 0.2;
+        await sleep(wait * 1000);
+        continue;
+      }
+      const err = new Error(desc || 'error');
+      err.code = code;
+      err.desc = desc;
+      throw err;
+    }
+  }
+
+  function handleError(e, quiet) {
+    setStatus('err');
+    const d = String(e.desc || e.message || '').toLowerCase();
+    if (e.network) { if (!quiet) toast('Sin conexión. Se reintenta al tocar o cuando vuelva internet.'); return; }
+    if (e.code === 401 || e.code === 404) { toast('El token ya no es válido. Cámbialo en el código.', 6000); return; }
+    if (d.includes('chat not found') || d.includes('initiate')) {
+      toast('No encuentro el chat. Escríbele /start a tu bot en Telegram.', 6000);
+      return;
+    }
+    if (d.includes('blocked')) { toast('Tienes bloqueado el bot en Telegram.'); return; }
+    toast('Telegram dijo: ' + (e.desc || e.code || 'error'));
+  }
+
+  /* ---------- enviar el número a Telegram ----------
+     Editar un mensaje no hace sonar el teléfono. Por eso cada cambio manda un
+     mensaje NUEVO (con notificación) y borra el anterior, así en el chat
+     siempre queda un solo número. */
+  async function push(n) {
+    const old = messageId;
+
+    const msg = await tg('sendMessage', { chat_id: CHAT_ID, text: String(n) });
+    messageId = msg.message_id;
+    saveLocal();
+
+    if (old) {                                          // borrar el número anterior
+      try { await tg('deleteMessage', { chat_id: CHAT_ID, message_id: String(old) }); } catch (e) {}
+    }
+
+    try {                                               // fijarlo = memoria compartida entre dispositivos
+      await tg('pinChatMessage', { chat_id: CHAT_ID, message_id: String(messageId), disable_notification: 'true' });
+      try {                                             // Telegram deja un aviso "mensaje fijado": se borra
+        await tg('deleteMessage', { chat_id: CHAT_ID, message_id: String(messageId + 1) });
+      } catch (e) {}
+    } catch (e) {
+      if (!e.network && !pinWarned) {
+        pinWarned = true;
+        toast('No pude fijar el mensaje: el contador no se compartirá entre dispositivos.', 6500);
+      }
+    }
+  }
+
+  // Si tocas muy rápido, solo se envía el último valor (los intermedios no importan).
+  async function flush() {
+    if (syncing) return;
+    syncing = true;
+    setStatus('busy');
+    try {
+      while (sent !== count) {
+        const target = count;
+        await push(target);
+        sent = target;
+        saveLocal();
+      }
+      setStatus('ok');
+    } catch (e) {
+      handleError(e);
+    } finally {
+      syncing = false;
+    }
+  }
+
+  /* ---------- leer el número del mensaje fijado ---------- */
+  async function loadFromTelegram() {
+    try {
+      const chat = await tg('getChat', { chat_id: CHAT_ID });
+      if (syncing || sent !== count) return;            // hubo toques mientras tanto: no pisarlos
+      const p = chat && chat.pinned_message;
+      if (p && p.from && p.from.is_bot && /^\d+$/.test(String(p.text || '').trim())) {
+        messageId = p.message_id;
+        count = sent = parseInt(p.text, 10);
+        saveLocal();
+        render(false);
+      }
+      setStatus('ok');
+    } catch (e) {
+      handleError(e, true);
+    }
+  }
+
+  /* ---------- toques ---------- */
+  function change(d) {
+    const next = Math.max(0, count + d);
+    if (next === count) return;
+    count = next;
+    saveLocal();
+    render(true);
+    pulse();
+    if (navigator.vibrate) navigator.vibrate(8);
+    flush();
+  }
+
+  mainBtn.addEventListener('pointerdown', () => {
+    mainBtn.classList.remove('hit');
+    void mainBtn.offsetWidth;
+    mainBtn.classList.add('hit');
+  });
+  mainBtn.addEventListener('animationend', () => mainBtn.classList.remove('hit'));
+  mainBtn.addEventListener('click', () => change(1));
+  minusBtn.addEventListener('click', () => change(-1));
+
+  /* ---------- mantenerse al día ---------- */
+  function resync() { if (sent !== count) flush(); else loadFromTelegram(); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) resync(); });
+  window.addEventListener('online', () => { if (sent !== count) flush(); });
+
+  /* ---------- arranque ---------- */
+  render(false);
+  resync();
+})();
+</script>
+</body>
+</html>
